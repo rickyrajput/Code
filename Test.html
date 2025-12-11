@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>CPNI Banner</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Segoe UI, Arial, sans-serif;
+            font-size: 11px;
+            background: #ffffff;
+        }
+        #card {
+            border: 1px solid #edebe9;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 4px;
+        }
+        #header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        #dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        #title {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        #ext {
+            font-size: 11px;
+            color: #605e5c;
+            margin-top: 2px;
+        }
+    </style>
+    <script type="text/javascript">
+
+        // ---------- CONFIG: change schema name here ----------
+        var CONSENT_FIELD_NAME = "vz_consentoid";   // <-- use your real schema name
+        // ----------------------------------------------------
+
+        // Mapping from your spreadsheet (Consent OID -> Color + Messages)
+        function getCpniConfig(consentOid) {
+            var m = {
+                20001: {
+                    color: "Green",
+                    banner: "CLEARED FOR CPNI USE",
+                    ext: "Account is cleared for cross-marketing VZ services."
+                },
+                10001: {
+                    color: "Red",
+                    banner: "RESTRICTED - HAS NOT BEEN EVALUATED - NO SHARING",
+                    ext: "Account has not been cleared for sharing VZ CPNI."
+                },
+                30002: {
+                    color: "Yellow",
+                    banner: "EXCLUDES SHARING WITH THIRD PARTIES",
+                    ext: "Account is cleared for cross-marketing VZ services (excludes third parties)."
+                },
+                10002: {
+                    color: "Red",
+                    banner: "RESTRICTED - NO SHARING OR USE OF CPNI PERMITTED",
+                    ext: "Account has not been cleared for sharing or use of CPNI."
+                },
+                90001: {
+                    color: "Blue",
+                    banner: "CPNI MAY BE USED INTERNALLY",
+                    ext: "CPNI may be used internally by Wireline and Wireless."
+                },
+                40001: {
+                    color: "Yellow",
+                    banner: "UNDETERMINED",
+                    ext: "CPNI consent status is undetermined."
+                },
+                50001: {
+                    color: "Yellow",
+                    banner: "NO LANGUAGE",
+                    ext: "No CPNI language on file."
+                },
+                30001: {
+                    color: "Yellow",
+                    banner: "CONTAINS NEGOTIATED LIMITATIONS ON SHARING",
+                    ext: "CPNI may be used to market all VZ services with negotiated limitations."
+                },
+                30003: {
+                    color: "Yellow",
+                    banner: "NO USE OF VZB CPNI",
+                    ext: "Account is cleared for sharing and use of CPNI except VZB CPNI."
+                },
+                30004: {
+                    color: "Yellow",
+                    banner: "NO USE OF VZW CPNI",
+                    ext: "Account is cleared for sharing and use of CPNI except VZW CPNI."
+                }
+            };
+            return m[consentOid] || null;
+        }
+
+        function getColorHex(color) {
+            if (!color) return "#8A8886";
+            switch (color.toLowerCase()) {
+                case "green":  return "#107C10";
+                case "red":    return "#E81123";
+                case "yellow": return "#FFB900";
+                case "blue":   return "#0078D4";
+                default:       return "#8A8886";
+            }
+        }
+
+        function renderBanner(cfg) {
+            var dot = document.getElementById("dot");
+            var title = document.getElementById("title");
+            var ext = document.getElementById("ext");
+
+            if (!cfg) {
+                dot.style.backgroundColor = "#8A8886";
+                title.textContent = "No CPNI information";
+                ext.textContent = "";
+                return;
+            }
+
+            dot.style.backgroundColor = getColorHex(cfg.color);
+            title.textContent = cfg.banner;
+            ext.textContent = cfg.ext || "";
+        }
+
+        function initCpniBanner() {
+            try {
+                var parentXrm = parent.Xrm || window.top.Xrm;
+                if (!parentXrm || !parentXrm.Page) {
+                    renderBanner(null);
+                    return;
+                }
+
+                var attr = parentXrm.Page.getAttribute(CONSENT_FIELD_NAME);
+                if (!attr) {
+                    renderBanner(null);
+                    return;
+                }
+
+                var consentValue = attr.getValue();
+                var cfg = getCpniConfig(consentValue);
+                renderBanner(cfg);
+
+            } catch (e) {
+                // In case of any error, just show empty banner
+                console.log(e);
+                renderBanner(null);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", initCpniBanner);
+    </script>
+</head>
+<body>
+    <div id="card">
+        <div id="header">
+            <div id="dot"></div>
+            <div id="title">Loading CPNI info...</div>
+        </div>
+        <div id="ext"></div>
+    </div>
+</body>
+</html>
