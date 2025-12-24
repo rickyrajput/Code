@@ -1,0 +1,301 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Consent Preferences</title>
+  <style>
+    :root{
+      --red:#C50F1F;
+      --green:#107C10;
+      --border:#D0D0D0;
+      --bg:#ffffff;
+      --muted:#666;
+    }
+    body{
+      margin:0;
+      font-family: Segoe UI, Arial, sans-serif;
+      background: transparent;
+    }
+    .wrap{
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px;
+      background: var(--bg);
+    }
+    .header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background: var(--red);
+      flex:0 0 auto;
+    }
+    .header-title{
+      font-weight:600;
+      color: var(--red);
+    }
+    .header-count{
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .cards{
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:12px;
+      background:#fafafa;
+    }
+    .card{
+      background:#fff;
+      border:2px solid rgba(197,15,31,0.35);
+      border-radius:12px;
+      padding:10px 12px;
+      margin:10px 0;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+    }
+    .badge{
+      display:inline-block;
+      background: var(--red);
+      color:#fff;
+      padding:4px 10px;
+      border-radius:6px;
+      font-weight:600;
+      font-size: 13px;
+      margin-bottom:6px;
+    }
+    .msg{
+      color:#222;
+      font-size: 13px;
+      line-height:1.35;
+    }
+    .empty{
+      color: var(--green);
+      font-weight:600;
+      padding:10px 6px;
+    }
+    .error{
+      color: var(--red);
+      font-weight:600;
+      padding:10px 6px;
+      white-space: pre-wrap;
+    }
+    .muted{
+      color: var(--muted);
+      font-size:12px;
+      padding:6px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <span class="dot"></span>
+      <div>
+        <div class="header-title" id="hdrTitle">Notifications</div>
+        <div class="header-count" id="hdrCount">Loading…</div>
+      </div>
+    </div>
+
+    <div class="cards" id="cards">
+      <div class="muted">Loading consent preferences…</div>
+    </div>
+  </div>
+
+<script>
+/**
+ * ✅ Update these field schema names to your actual consent fields on Contact.
+ * Keep "Hard Bounce" OUT (excluded by AC).
+ *
+ * Each rule returns 0..n notifications based on selected values.
+ */
+
+const CONSENT_RULES = [
+  // Primary Email: Do Not email for wireline/wireless
+  {
+    title: "Primary Email",
+    build: (c) => {
+      const wireline = !!c["vz_donotemail_wireline"];
+      const wireless = !!c["vz_donotemail_wireless"];
+      if (!wireline && !wireless) return [];
+
+      // You can adjust the exact wording to match AC examples.
+      if (wireline && wireless) {
+        return [{ title:"Primary Email", message:"Do Not email for wireline or wireless services" }];
+      }
+      if (wireline) {
+        return [{ title:"Primary Email", message:"Do Not email for wireline services" }];
+      }
+      return [{ title:"Primary Email", message:"Do Not email for wireless services" }];
+    }
+  },
+
+  // Mobile Phone 1: Do Not text for wireless services
+  {
+    title: "Mobile Phone 1",
+    build: (c) => {
+      const doNotTextWireless = !!c["vz_donottext_wireless"];
+      return doNotTextWireless
+        ? [{ title:"Mobile Phone 1", message:"Do Not text for wireless services" }]
+        : [];
+    }
+  },
+
+  // Mobile Phone 2: Do Not call for wireline/wireless services
+  {
+    title: "Mobile Phone 2",
+    build: (c) => {
+      const wireline = !!c["vz_donotcall_wireline"];
+      const wireless = !!c["vz_donotcall_wireless"];
+      if (!wireline && !wireless) return [];
+
+      if (wireline && wireless) {
+        return [{ title:"Mobile Phone 2", message:"Do Not call for wireline or wireless services" }];
+      }
+      if (wireline) {
+        return [{ title:"Mobile Phone 2", message:"Do Not call for wireline services" }];
+      }
+      return [{ title:"Mobile Phone 2", message:"Do Not call for wireless services" }];
+    }
+  },
+
+  // Address: Do Not Knock
+  {
+    title: "Address",
+    build: (c) => {
+      const doNotKnock = !!c["vz_donotknock"];
+      return doNotKnock
+        ? [{ title:"Address", message:"Do Not Knock" }]
+        : [];
+    }
+  },
+];
+
+// -----------------------------------------
+// Helpers
+// -----------------------------------------
+
+function getXrm() {
+  // Works for embedded webresource on model-driven form
+  return window.parent && window.parent.Xrm ? window.parent.Xrm : null;
+}
+
+function getContactIdFromForm() {
+  const Xrm = getXrm();
+  if (!Xrm) return null;
+
+  // Modern safe way for webresources embedded in forms:
+  // fallback patterns included.
+  try {
+    // Most reliable:
+    const id = Xrm.Page?.data?.entity?.getId?.() || Xrm.Utility?.getPageContext?.()?.input?.entityId;
+    return id ? id.replace(/[{}]/g, "") : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function uniqPush(list, item) {
+  // avoids duplicates if multiple rules accidentally generate same line
+  const key = `${item.title}||${item.message}`;
+  if (!list._keys) list._keys = new Set();
+  if (!list._keys.has(key)) {
+    list._keys.add(key);
+    list.push(item);
+  }
+}
+
+function setHeaderCount(n) {
+  document.getElementById("hdrCount").textContent = `${n} total`;
+}
+
+function renderEmpty() {
+  setHeaderCount(0);
+  const cards = document.getElementById("cards");
+  cards.innerHTML = `<div class="empty">No Consent Preferences Listed</div>`;
+}
+
+function renderError(err) {
+  const cards = document.getElementById("cards");
+  cards.innerHTML = `<div class="error">Error loading consent preferences:\n${err}</div>`;
+}
+
+function renderNotifications(items) {
+  setHeaderCount(items.length);
+  const cards = document.getElementById("cards");
+
+  const html = items.map(n => `
+    <div class="card">
+      <div class="badge">${escapeHtml(n.title)}</div>
+      <div class="msg">${escapeHtml(n.message)}</div>
+    </div>
+  `).join("");
+
+  cards.innerHTML = html || `<div class="empty">No Consent Preferences Listed</div>`;
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+// -----------------------------------------
+// Main
+// -----------------------------------------
+
+async function loadConsent() {
+  const Xrm = getXrm();
+  if (!Xrm) {
+    renderError("Xrm not available. Ensure this web resource is embedded on a model-driven form.");
+    return;
+  }
+
+  const contactId = getContactIdFromForm();
+  if (!contactId) {
+    // When record is new/unsaved, there is no ID => show empty state.
+    renderEmpty();
+    return;
+  }
+
+  // Build $select list from rule field usage (keep it explicit for performance)
+  const selectFields = [
+    "vz_donotemail_wireline",
+    "vz_donotemail_wireless",
+    "vz_donottext_wireless",
+    "vz_donotcall_wireline",
+    "vz_donotcall_wireless",
+    "vz_donotknock"
+    // Hard bounce intentionally excluded
+  ];
+
+  try {
+    const record = await Xrm.WebApi.retrieveRecord("contact", contactId, `?$select=${selectFields.join(",")}`);
+
+    const notifications = [];
+    for (const rule of CONSENT_RULES) {
+      const out = rule.build(record) || [];
+      out.forEach(n => uniqPush(notifications, n));
+    }
+
+    if (!notifications.length) {
+      renderEmpty();
+    } else {
+      renderNotifications(notifications);
+    }
+  } catch (e) {
+    renderError(e && e.message ? e.message : String(e));
+  }
+}
+
+document.addEventListener("DOMContentLoaded", loadConsent);
+</script>
+</body>
+</html>
