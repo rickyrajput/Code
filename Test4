@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Consent Preferences</title>
+
+  <style>
+    :root{
+      --red:#C50F1F;
+      --green:#107C10;
+      --border:#D1D1D1;
+      --bg:#ffffff;
+      --muted:#605E5C;
+    }
+    body{
+      margin:0;
+      font-family:"Segoe UI", Arial, sans-serif;
+      background:transparent;
+    }
+    .wrap{
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px;
+      background:var(--bg);
+    }
+    .header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .dot{
+      width:10px;height:10px;border-radius:50%;
+      background:var(--red);
+      flex:0 0 auto;
+    }
+    .title{
+      font-weight:600;
+      color:var(--red);
+      line-height:1.2;
+    }
+    .count{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .panel{
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:12px;
+      background:#FAFAFA;
+    }
+    .card{
+      background:#fff;
+      border:2px solid rgba(197,15,31,0.35);
+      border-radius:12px;
+      padding:10px 12px;
+      margin:10px 0;
+    }
+    .badge{
+      display:inline-block;
+      background:var(--red);
+      color:#fff;
+      padding:4px 10px;
+      border-radius:6px;
+      font-weight:600;
+      font-size:13px;
+      margin-bottom:6px;
+    }
+    .msg{
+      color:#201F1E;
+      font-size:13px;
+      line-height:1.35;
+    }
+    .empty{
+      color:var(--green);
+      font-weight:600;
+      padding:8px 4px;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:12px;
+      padding:6px 0;
+    }
+    .error{
+      color:var(--red);
+      font-weight:600;
+      padding:8px 4px;
+      white-space:pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <div class="title">Notifications</div>
+        <div class="count" id="hdrCount">Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="muted">Loading consent preferences…</div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  /**
+   * ✅ Your consent field schema names (from screenshot)
+   * Hard Bounce fields are intentionally excluded per requirement.
+   */
+  const CONSENT_FIELDS = {
+    // Global flags
+    doNotPhone: "donotphone",
+    doNotEmail: "donotemail",
+    doNotPostalMail: "donotpostalmail",
+
+    // Mobile 1
+    mobile1WirelessCall: "vz_vzvmobile1allowornot",
+    mobile1Text: "vz_mobile1textallowornot",
+
+    // Mobile 2
+    mobile2WirelineCall: "vz_vz1mobile2allowornot",
+    mobile2WirelessCall: "vz_vzvmobile2allowornot",
+    mobile2Text: "vz_mobile2textallowornot",
+
+    // Home Phone (Direct/Home)
+    homeWirelineCall: "vz_vz1homephoneallowornot",
+    homeWirelessCall: "vz_vzvhomephoneallowornot",
+
+    // Business Phone (Company)
+    businessWirelineCall: "vz_vz1businessphoneallowornot",
+    businessWirelessCall: "vz_vzvbusinessphoneallowornot",
+
+    // Emails
+    primaryEmailAllowOrNot: "vz_vzvprimaryemailallowornot",
+    secondaryEmailWirelineAllowOrNot: "vz_vz1secemailallowornot",
+    secondaryEmailWirelessAllowOrNot: "vz_vzvsecemailallowornot",
+
+    // Address
+    addressMailAllowOrNot: "vz_vzvaddressmailallowornot",
+    addressKnockAllowOrNot: "vz_addressknockallowornot"
+
+    // EXCLUDED:
+    // vz_primaryemailhardbounce
+    // vz_seceemailhardbounce
+  };
+
+  /**
+   * Card definitions:
+   * - A card is shown if ANY of its mapped fields are TRUE.
+   * - Message is built using the specific fields that are true.
+   */
+  const CARD_CONFIG = [
+    {
+      title: "Phone (Overall)",
+      fields: [CONSENT_FIELDS.doNotPhone],
+      buildMessage: () => "Do Not call/text (overall preference)"
+    },
+    {
+      title: "Mobile Phone 1",
+      fields: [CONSENT_FIELDS.mobile1WirelessCall, CONSENT_FIELDS.mobile1Text],
+      buildMessage: (r) => {
+        const parts = [];
+        if (isSelected(r, CONSENT_FIELDS.mobile1WirelessCall)) parts.push("Do Not call for wireless services");
+        if (isSelected(r, CONSENT_FIELDS.mobile1Text)) parts.push("Do Not text for wireless services");
+        return parts.join(" | ");
+      }
+    },
+    {
+      title: "Mobile Phone 2",
+      fields: [CONSENT_FIELDS.mobile2WirelineCall, CONSENT_FIELDS.mobile2WirelessCall, CONSENT_FIELDS.mobile2Text],
+      buildMessage: (r) => {
+        const parts = [];
+        const callSvcs = [];
+        if (isSelected(r, CONSENT_FIELDS.mobile2WirelineCall)) callSvcs.push("wireline");
+        if (isSelected(r, CONSENT_FIELDS.mobile2WirelessCall)) callSvcs.push("wireless");
+        if (callSvcs.length) parts.push(`Do Not call for ${joinServices(callSvcs)} services`);
+        if (isSelected(r, CONSENT_FIELDS.mobile2Text)) parts.push("Do Not text for wireless services");
+        return parts.join(" | ");
+      }
+    },
+    {
+      title: "Direct/Home Phone",
+      fields: [CONSENT_FIELDS.homeWirelineCall, CONSENT_FIELDS.homeWirelessCall],
+      buildMessage: (r) => {
+        const callSvcs = [];
+        if (isSelected(r, CONSENT_FIELDS.homeWirelineCall)) callSvcs.push("wireline");
+        if (isSelected(r, CONSENT_FIELDS.homeWirelessCall)) callSvcs.push("wireless");
+        return `Do Not call for ${joinServices(callSvcs)} services`;
+      }
+    },
+    {
+      title: "Company Phone",
+      fields: [CONSENT_FIELDS.businessWirelineCall, CONSENT_FIELDS.businessWirelessCall],
+      buildMessage: (r) => {
+        const callSvcs = [];
+        if (isSelected(r, CONSENT_FIELDS.businessWirelineCall)) callSvcs.push("wireline");
+        if (isSelected(r, CONSENT_FIELDS.businessWirelessCall)) callSvcs.push("wireless");
+        return `Do Not call for ${joinServices(callSvcs)} services`;
+      }
+    },
+    {
+      title: "Email (Overall)",
+      fields: [CONSENT_FIELDS.doNotEmail],
+      buildMessage: () => "Do Not email (overall preference)"
+    },
+    {
+      title: "Primary Email",
+      fields: [CONSENT_FIELDS.primaryEmailAllowOrNot],
+      buildMessage: (r) => (
+        isSelected(r, CONSENT_FIELDS.primaryEmailAllowOrNot)
+          ? "Do Not email for wireline or wireless services"
+          : ""
+      )
+    },
+    {
+      title: "Secondary Email",
+      fields: [CONSENT_FIELDS.secondaryEmailWirelineAllowOrNot, CONSENT_FIELDS.secondaryEmailWirelessAllowOrNot],
+      buildMessage: (r) => {
+        const svcs = [];
+        if (isSelected(r, CONSENT_FIELDS.secondaryEmailWirelineAllowOrNot)) svcs.push("wireline");
+        if (isSelected(r, CONSENT_FIELDS.secondaryEmailWirelessAllowOrNot)) svcs.push("wireless");
+        return `Do Not email for ${joinServices(svcs)} services`;
+      }
+    },
+    {
+      title: "Postal Mail (Overall)",
+      fields: [CONSENT_FIELDS.doNotPostalMail],
+      buildMessage: () => "Do Not mail (overall preference)"
+    },
+    {
+      title: "Address",
+      fields: [CONSENT_FIELDS.addressMailAllowOrNot, CONSENT_FIELDS.addressKnockAllowOrNot],
+      buildMessage: (r) => {
+        const parts = [];
+        if (isSelected(r, CONSENT_FIELDS.addressMailAllowOrNot)) parts.push("Do Not mail for wireless services");
+        if (isSelected(r, CONSENT_FIELDS.addressKnockAllowOrNot)) parts.push("Do Not Knock");
+        return parts.join(" | ");
+      }
+    }
+  ];
+
+  // ---------- Microsoft-supported Xrm access ----------
+  function getXrm() {
+    return (window.parent && window.parent.Xrm) ? window.parent.Xrm : null;
+  }
+
+  function getContactId() {
+    const xrm = getXrm();
+    if (!xrm || !xrm.Utility || !xrm.Utility.getPageContext) return null;
+
+    const ctx = xrm.Utility.getPageContext();
+    const id = ctx && ctx.input ? ctx.input.entityId : null;
+    return id ? String(id).replace(/[{}]/g, "") : null;
+  }
+
+  // ---------- DOM helpers (no innerHTML) ----------
+  function setHeaderCount(total) {
+    const el = document.getElementById("hdrCount");
+    el.textContent = `${total} total`;
+  }
+
+  function clearPanel() {
+    const panel = document.getElementById("panel");
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+    return panel;
+  }
+
+  function renderEmpty() {
+    setHeaderCount(0);
+    const panel = clearPanel();
+    const div = document.createElement("div");
+    div.className = "empty";
+    div.textContent = "No Consent Preferences Listed";
+    panel.appendChild(div);
+  }
+
+  function renderError(message) {
+    const panel = clearPanel();
+    const div = document.createElement("div");
+    div.className = "error";
+    div.textContent = `Error loading consent preferences:\n${message}`;
+    panel.appendChild(div);
+  }
+
+  function createCard(title, message) {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const badge = document.createElement("div");
+    badge.className = "badge";
+    badge.textContent = title;
+
+    const msg = document.createElement("div");
+    msg.className = "msg";
+    msg.textContent = message;
+
+    card.appendChild(badge);
+    card.appendChild(msg);
+    return card;
+  }
+
+  // ---------- Logic helpers ----------
+  function isSelected(record, schemaName) {
+    // Requirement says: if TRUE then show.
+    return record && schemaName ? record[schemaName] === true : false;
+  }
+
+  function joinServices(list) {
+    if (!list || list.length === 0) return "";
+    if (list.length === 1) return list[0];
+    if (list.length === 2) return `${list[0]} or ${list[1]}`;
+    return `${list.slice(0, -1).join(", ")}, or ${list[list.length - 1]}`;
+  }
+
+  function buildSelectFields() {
+    const set = new Set();
+    Object.keys(CONSENT_FIELDS).forEach((k) => set.add(CONSENT_FIELDS[k]));
+    return Array.from(set);
+  }
+
+  function anyFieldTrue(record, fields) {
+    return fields.some((f) => isSelected(record, f));
+  }
+
+  async function load() {
+    const xrm = getXrm();
+    if (!xrm || !xrm.WebApi) {
+      renderError("Xrm.WebApi not available. Ensure this is embedded on Contact main form.");
+      return;
+    }
+
+    const id = getContactId();
+    if (!id) {
+      // Unsaved record = no id => show empty
+      renderEmpty();
+      return;
+    }
+
+    const selectFields = buildSelectFields();
+    const query = `?$select=${encodeURIComponent(selectFields.join(","))}`;
+
+    try {
+      const record = await xrm.WebApi.retrieveRecord("contact", id, query);
+
+      const notifications = [];
+      CARD_CONFIG.forEach((cfg) => {
+        if (anyFieldTrue(record, cfg.fields)) {
+          const msg = cfg.buildMessage(record);
+          if (msg && msg.trim().length > 0) {
+            notifications.push({ title: cfg.title, message: msg });
+          }
+        }
+      });
+
+      setHeaderCount(notifications.length);
+
+      if (notifications.length === 0) {
+        renderEmpty();
+        return;
+      }
+
+      const panel = clearPanel();
+      notifications.forEach((n) => {
+        panel.appendChild(createCard(n.title, n.message));
+      });
+
+    } catch (e) {
+      renderError(e && e.message ? e.message : String(e));
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", load);
+
+  // Optional refresh hook from form JS (postMessage)
+  window.addEventListener("message", function (evt) {
+    if (evt && evt.data && evt.data.type === "VZ_REFRESH_CONSENT") {
+      load();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
