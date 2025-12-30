@@ -1,0 +1,17 @@
+const wrCtrl = formContext.getControl("WebResource__contact_consent");
+
+if (!wrCtrl) {
+    console.warn("Consent HTML webresource control not found.");
+    return;
+}
+
+const envUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+
+wrCtrl.getContentWindow().then(function (cw) {
+    cw.postMessage(
+        { type: "VZ_REFRESH_CONSENT" },
+        envUrl
+    );
+}).catch(function (e) {
+    console.error("Failed to get content window", e);
+});
