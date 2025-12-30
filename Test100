@@ -1,0 +1,17 @@
+function refreshConsentHtml(formContext) {
+    try {
+        // IMPORTANT: use your actual webresource control name from the form
+        const wrCtrl = formContext.getControl("WebResource_vz_ContactPreNotification");
+
+        if (!wrCtrl) {
+            console.warn("Consent HTML webresource control not found.");
+            return;
+        }
+
+        wrCtrl.getContentWindow().then(function (cw) {
+            cw.postMessage({ type: "VZ_REFRESH_CONSENT" }, "*");
+        });
+    } catch (e) {
+        console.error("refreshConsentHtml failed", e);
+    }
+}
