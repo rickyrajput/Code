@@ -1,0 +1,26 @@
+ECPDPostCreateAsync
+	•	Runs when: An ECPD record is created
+	•	Stage: Post-Operation (Async)
+	•	What it does:
+	•	Creates a team member record for the ECPD owner (only for interactive users)
+	•	For related ECPD Contact records:
+	•	Builds a unique contact identifier
+	•	Syncs Account–Contact relationships based on the ECPD profile’s account
+
+⸻
+
+2. ECPDPostUpdateAsync
+	•	Runs when: An ECPD record is updated
+	•	Stage: Post-Operation (Async)
+	•	What it does:
+	•	Detects account changes by comparing old and new values
+	•	Expires old ECPD usage records in bulk when needed
+	•	If the ECPD account changes:
+	•	Updates relationships for all related contacts (N:N and custom junctions)
+	•	Removes old links and creates new ones
+	•	For ECPD Contact records:
+	•	Rebuilds identifiers if relevant fields changed
+	•	Keeps Account–Contact relationships in sync
+	•	If vz_clsid changes:
+	•	Updates related Opportunity parent accounts
+	•	Flags records for user review where required
