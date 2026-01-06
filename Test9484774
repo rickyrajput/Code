@@ -1,0 +1,28 @@
+AccountContactPostCreateAsync
+	•	Runs when: An Account–Contact relationship is created
+	•	Stage: Post-Operation (Async)
+
+What it does:
+	•	When a new Account–Contact relation is created:
+	•	Adds the Contact to the Account’s team
+	•	Aligns the Contact’s access with the Account automatically
+
+⸻
+
+AccountContactPostUpdateAsync
+	•	Runs when: An Account–Contact relationship is updated
+	•	Stage: Post-Operation (Async)
+
+What it does:
+	•	When the relationship is updated (including status changes):
+	•	Adjusts the Contact’s access in the Account’s team
+	•	If the relationship becomes inactive, the Contact’s access is revoked
+
+⸻
+
+AccountContactPostDeleteSync
+	•	Runs when: An Account–Contact relationship is deleted
+	•	Stage: Post-Operation (Sync)
+
+What it does:
+	•	Immediately removes the Contact’s access from the Account’s team when the relationship is deleted
