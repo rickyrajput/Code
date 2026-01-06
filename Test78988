@@ -1,0 +1,48 @@
+Verizon Contact Plugins – Summary
+
+This document lists all plugins related to the Contact entity and explains what each plugin does, when it runs, and why it exists.
+
+1. ContactPreValidationCreate
+	•	Runs when: A Contact is created
+	•	Stage: Pre-Validation
+	•	What it does:
+	•	Checks the primary email to avoid duplicate contacts
+	•	Allows duplicates only if the email already exists in the Shared Email table
+	•	Skips this validation for:
+	•	Integration service accounts
+	•	UI-triggered saves (vz_isuitriggered)
+
+⸻
+
+2. ContactPreValidationUpdate
+	•	Runs when: A Contact is updated
+	•	Stage: Pre-Validation
+	•	What it does:
+	•	Validates changes to the primary email to prevent duplicates
+	•	Allows update if the email already exists in Shared Email
+	•	Skips validation for:
+	•	Integration service accounts
+	•	UI-triggered saves
+
+⸻
+
+3. ContactPostCreateAsync
+	•	Runs when: A Contact is created
+	•	Stage: Post-Operation (Async)
+	•	What it does:
+	•	Creates or updates the Contact–Account relationship if a parent account exists
+	•	Uses DUNS number (vz_dunsloc) to manage account relationships
+	•	Checks for duplicate UPI records and merges them if required
+	•	Generates and saves the Contact ECPD Identifier
+
+⸻
+
+4. ContactPostUpdateAsync
+	•	Runs when: A Contact is updated
+	•	Stage: Post-Operation (Async)
+	•	What it does:
+	•	Keeps Contact–Account relationships in sync when the parent account changes
+	•	Handles create, update, and deactivate scenarios
+	•	Checks and merges duplicate UPI records
+	•	Rebuilds the Contact ECPD Identifier only if relevant fields changed
+	•	Updates related child vz_ecpdcontact records with the new identifier
