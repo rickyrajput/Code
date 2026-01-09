@@ -1,0 +1,25 @@
+function lockFormIfActive(executionContext) {
+    var formContext = executionContext.getFormContext();
+
+    var planStatus = formContext.getAttribute("vz_planstatus");
+    if (!planStatus) return;
+
+    var planStatusValue = planStatus.getText(); // use getValue() if OptionSet
+
+    if (planStatusValue === "Active") {
+
+        // Disable all fields
+        formContext.ui.controls.forEach(function (control) {
+            if (control && control.setDisabled) {
+                control.setDisabled(true);
+            }
+        });
+
+        // Optional: Show notification
+        formContext.ui.setFormNotification(
+            "This Account Plan is Active and cannot be edited.",
+            "INFO",
+            "PLAN_ACTIVE_LOCK"
+        );
+    }
+}
