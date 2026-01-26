@@ -1,0 +1,47 @@
+Create a new Dataverse table to store questionnaire answers for my existing configuration tables new_questionnaire and new_question.
+
+Table details
+	•	Display name: Question Response
+	•	Schema name: new_questionresponse
+	•	Primary name column display name: Question Response Name
+	•	Primary name schema: new_name
+	•	Enable auditing: Yes
+	•	Ownership: User or Team
+
+Columns to add
+	1.	Question
+	•	Schema name: new_questionid
+	•	Type: Lookup to table new_question
+	•	Requirement: Business Required
+	•	Searchable: Yes
+	2.	Questionnaire
+	•	Schema name: new_questionnaireid
+	•	Type: Lookup to table new_questionnaire
+	•	Requirement: Business Required
+	•	Searchable: Yes
+	3.	Respondent Contact
+	•	Schema name: new_respondentcontactid
+	•	Type: Lookup to standard table contact
+	•	Requirement: Business Required
+	•	Searchable: Yes
+	4.	Answer Text
+	•	Schema name: new_answertext
+	•	Type: Multiple lines of text
+	•	Requirement: Optional
+	5.	Last Answered On
+	•	Schema name: new_lastansweredon
+	•	Type: Date and time
+	•	Requirement: Optional
+
+Relationships
+Create Many-to-one (N:1) relationships from new_questionresponse to:
+	•	new_question using lookup new_questionid
+	•	new_questionnaire using lookup new_questionnaireid
+	•	contact using lookup new_respondentcontactid
+
+Relationship behavior
+	•	Set relationship behavior to Referential (no cascading delete/assign/share)
+
+Keys / uniqueness
+Create an Alternate Key on new_questionresponse to prevent duplicate answers:
+	•	Key columns: new_questionnaireid, new_questionid, 
