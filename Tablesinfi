@@ -1,0 +1,21 @@
+Tables
+
+1) Questionnaire (header) – new_questionnaire
+	•	new_name (Title)
+	•	new_isactive (Yes/No)
+	•	new_version (Whole number) (optional)
+	•	new_description (multiline) (optional)
+
+2) Question (config) – new_question
+	•	new_questionnaireid (Lookup → new_questionnaire)
+	•	new_name (Question text)
+	•	new_datatype (Choice: Text/Choice/Boolean/Number/Date)
+	•	new_sortorder (Whole number)
+	•	new_isrequired (Yes/No)
+	•	new_isactive (Yes/No)
+	•	new_helptext (multiline)
+	•	new_defaultvalue (Text) (store as string)
+	•	new_min (Decimal/Whole) (for number, optional)
+	•	new_max (Decimal/Whole) (for number, optional)
+	•	new_minlength / new_maxlength (Whole) (for text, optional)
+	•	new_choicesjson (multiline) (for Choice datatype only)
