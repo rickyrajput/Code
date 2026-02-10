@@ -1,0 +1,26 @@
+var VZ = VZ || {};
+VZ.ContractRequest = VZ.ContractRequest || {};
+
+VZ.ContractRequest.toggleNonStandardSection = function (executionContext) {
+    var formContext = executionContext.getFormContext();
+
+    var MASTER_CONTRACT_FIELD = "MASTER_CONTRACT_FIELD"; // e.g. "vz_mastercontracttype"
+    var TAB_NAME = "TAB_NAME";                           // e.g. "tab_contractinformation"
+    var SECTION_NAME = "SECTION_NAME";                   // e.g. "section_nonstandard_offer_details"
+
+    // If it's a Choice (OptionSet), getValue() returns a number
+    var NON_STANDARD_VALUE = 123456789; // <-- put the actual option value for "Non-Standard"
+
+    var attr = formContext.getAttribute(MASTER_CONTRACT_FIELD);
+    if (!attr) return;
+
+    var isNonStandard = (attr.getValue() === NON_STANDARD_VALUE);
+
+    var tab = formContext.ui.tabs.get(TAB_NAME);
+    if (!tab) return;
+
+    var section = tab.sections.get(SECTION_NAME);
+    if (!section) return;
+
+    section.setVisible(isNonStandard);
+};
