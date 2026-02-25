@@ -1,0 +1,48 @@
+function togglePWNSection(executionContext) {
+
+    var formContext = executionContext.getFormContext();
+    if (!formContext) return;
+
+    // Get questionnaire JSON attribute
+    var attr = formContext.getAttribute("vz_questionnairehost");
+    if (!attr) return;
+
+    var jsonValue = attr.getValue();
+    if (!jsonValue) {
+        setPWNSectionVisibility(formContext, false);
+        return;
+    }
+
+    try {
+
+        var data = JSON.parse(jsonValue);
+
+        var showPWN = false;
+
+        if (data.sections && Array.isArray(data.sections)) {
+
+            showPWN = data.sections.some(function (section) {
+                return section.offerType &&
+                       section.offerType.toUpperCase() === "PWN";
+            });
+
+        }
+
+        setPWNSectionVisibility(formContext, showPWN);
+
+    } catch (e) {
+        console.error("Invalid questionnaire JSON", e);
+        setPWNSectionVisibility(formContext, false);
+    }
+}
+
+function setPWNSectionVisibility(formContext, isVisible) {
+
+    var tab = formContext.ui.tabs.get("TAB_NAME");   // <-- replace
+    if (!tab) return;
+
+    var section = tab.sections.get("SECTION_NAME");  // <-- replace
+    if (!section) return;
+
+    section.setVisible(isVisible);
+}
