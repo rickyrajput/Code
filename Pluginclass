@@ -1,0 +1,204 @@
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using Newtonsoft.Json;
+
+namespace Verizon_CustomAPIs.API.CLM
+{
+    public class CLMUserAuthorizationAPI : IPlugin
+    {
+        public void Execute(IServiceProvider serviceProvider)
+        {
+            if (serviceProvider == null)
+            {
+                throw new ArgumentNullException(nameof(serviceProvider));
+            }
+
+            ITracingService tracing =
+                (ITracingService)serviceProvider.GetService(typeof(ITracingService));
+
+            IPluginExecutionContext context =
+                (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
+
+            IOrganizationServiceFactory serviceFactory =
+                (IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory));
+
+            IOrganizationService service =
+                serviceFactory.CreateOrganizationService(context.UserId);
+
+            try
+            {
+                tracing.Trace("CLMUserAuthorizationAPI: Start");
+
+                string encodedEid = GetRequiredInput(context, "EID");
+                string segment = GetRequiredInput(context, "Segment");
+
+                string decodedEid = DecodeBase64(encodedEid);
+                tracing.Trace($"Decoded EID: {decodedEid}");
+                tracing.Trace($"Segment: {segment}");
+
+                Entity user = GetUserByEid(service, tracing, decodedEid);
+
+                if (user == null)
+                {
+                    var notFoundResponse = new AuthorizationResponse
+                    {
+                        status = 404,
+                        message = "User not found",
+                        description = "No Dataverse user found for supplied EID",
+                        data = null
+                    };
+
+                    context.OutputParameters["Response"] = JsonConvert.SerializeObject(notFoundResponse);
+                    return;
+                }
+
+                Guid userId = user.Id;
+                string fullName = user.Contains("fullname") ? user["fullname"].ToString() : string.Empty;
+
+                List<string> roleNames = GetUserRoleNames(service, tracing, userId);
+
+                PermissionData permissions = BuildPermissions(roleNames, segment);
+
+                var response = new AuthorizationResponse
+                {
+                    status = 200,
+                    message = "Success",
+                    description = "Success",
+                    data = new AuthorizationData
+                    {
+                        EID = decodedEid,
+                        Name = fullName,
+                        segment = segment,
+                        roleList = string.Join(", ", roleNames),
+                        Permissions = permissions
+                    }
+                };
+
+                context.OutputParameters["Response"] = JsonConvert.SerializeObject(response);
+
+                tracing.Trace("CLMUserAuthorizationAPI: End");
+            }
+            catch (Exception ex)
+            {
+                tracing.Trace($"CLMUserAuthorizationAPI Exception: {ex}");
+
+                throw new InvalidPluginExecutionException("Error in CLMUserAuthorizationAPI: " + ex.Message, ex);
+            }
+        }
+
+        private static string GetRequiredInput(IPluginExecutionContext context, string paramName)
+        {
+            if (!context.InputParameters.Contains(paramName) || context.InputParameters[paramName] == null)
+            {
+                throw new InvalidPluginExecutionException($"{paramName} is required.");
+            }
+
+            return context.InputParameters[paramName].ToString();
+        }
+
+        private static string DecodeBase64(string input)
+        {
+            byte[] bytes = Convert.FromBase64String(input);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        private Entity GetUserByEid(IOrganizationService service, ITracingService tracing, string eid)
+        {
+            // Change attribute/schema name as per your environment
+            QueryExpression query = new QueryExpression("systemuser")
+            {
+                ColumnSet = new ColumnSet("fullname", "domainname", "systemuserid")
+            };
+
+            query.Criteria.AddCondition("employeeid", ConditionOperator.Equal, eid);
+
+            EntityCollection users = service.RetrieveMultiple(query);
+
+            tracing.Trace($"Users found for EID {eid}: {users.Entities.Count}");
+
+            return users.Entities.FirstOrDefault();
+        }
+
+        private List<string> GetUserRoleNames(IOrganizationService service, ITracingService tracing, Guid userId)
+        {
+            var roleNames = new List<string>();
+
+            QueryExpression query = new QueryExpression("role")
+            {
+                ColumnSet = new ColumnSet("name"),
+                Distinct = true
+            };
+
+            LinkEntity userRoleLink = new LinkEntity(
+                "role",
+                "systemuserroles",
+                "roleid",
+                "roleid",
+                JoinOperator.Inner);
+
+            userRoleLink.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
+
+            query.LinkEntities.Add(userRoleLink);
+
+            EntityCollection roles = service.RetrieveMultiple(query);
+
+            foreach (var role in roles.Entities)
+            {
+                if (role.Contains("name"))
+                {
+                    roleNames.Add(role["name"].ToString());
+                }
+            }
+
+            tracing.Trace($"Roles found: {string.Join(", ", roleNames)}");
+
+            return roleNames;
+        }
+
+        private PermissionData BuildPermissions(List<string> roleNames, string segment)
+        {
+            // Replace this with real business logic from config / role mapping / segment rules
+            bool isTemplateAdmin = roleNames.Any(r => r.Equals("Template Admin", StringComparison.OrdinalIgnoreCase));
+            bool isClmAdmin = roleNames.Any(r => r.Equals("CLM Admin", StringComparison.OrdinalIgnoreCase));
+
+            return new PermissionData
+            {
+                createTemplate = isTemplateAdmin || isClmAdmin,
+                editTemplate = isTemplateAdmin || isClmAdmin,
+                viewTemplate = true,
+                addClausesToDocument = isClmAdmin,
+                redlineDocuments = isClmAdmin
+            };
+        }
+    }
+
+    public class AuthorizationResponse
+    {
+        public int status { get; set; }
+        public string message { get; set; }
+        public string description { get; set; }
+        public AuthorizationData data { get; set; }
+    }
+
+    public class AuthorizationData
+    {
+        public string EID { get; set; }
+        public string Name { get; set; }
+        public string segment { get; set; }
+        public string roleList { get; set; }
+        public PermissionData Permissions { get; set; }
+    }
+
+    public class PermissionData
+    {
+        public bool createTemplate { get; set; }
+        public bool editTemplate { get; set; }
+        public bool viewTemplate { get; set; }
+        public bool addClausesToDocument { get; set; }
+        public bool redlineDocuments { get; set; }
+    }
+}
