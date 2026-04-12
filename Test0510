@@ -1,0 +1,96 @@
+using Microsoft.Xrm.Sdk;
+using System;
+using System.Net.Http;
+using System.Text;
+
+namespace Verizon_CustomAPIs.API.CLM
+{
+    public class CLMUserAuthorizationAPI : IPlugin
+    {
+        public void Execute(IServiceProvider serviceProvider)
+        {
+            if (serviceProvider == null)
+            {
+                throw new ArgumentNullException(nameof(serviceProvider));
+            }
+
+            ITracingService tracing =
+                (ITracingService)serviceProvider.GetService(typeof(ITracingService));
+
+            IPluginExecutionContext context =
+                (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
+
+            IOrganizationServiceFactory serviceFactory =
+                (IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory));
+
+            IOrganizationService service = serviceFactory.CreateOrganizationService(context.UserId);
+
+            try
+            {
+                tracing.Trace("=== CLMUserAuthorizationAPI Started ===");
+
+                // 1. Read input parameters
+                string eid = context.InputParameters.Contains("EID") && context.InputParameters["EID"] != null
+                    ? context.InputParameters["EID"].ToString()
+                    : string.Empty;
+
+                string segment = context.InputParameters.Contains("Segment") && context.InputParameters["Segment"] != null
+                    ? context.InputParameters["Segment"].ToString()
+                    : string.Empty;
+
+                // 2. Validate inputs
+                if (string.IsNullOrWhiteSpace(eid))
+                {
+                    throw new InvalidPluginExecutionException("EID is required.");
+                }
+
+                if (string.IsNullOrWhiteSpace(segment))
+                {
+                    throw new InvalidPluginExecutionException("Segment is required.");
+                }
+
+                tracing.Trace($"Input EID: {eid}");
+                tracing.Trace($"Input Segment: {segment}");
+
+                // 3. Base64 encrypt / encode EID
+                string encodedEid = Convert.ToBase64String(Encoding.UTF8.GetBytes(eid));
+                tracing.Trace($"Encoded EID: {encodedEid}");
+
+                // 4. Prepare request for external API
+                // Example only - replace with actual endpoint and request format
+                string requestUrl = "YOUR_AUTHORIZATION_ENDPOINT_URL";
+
+                using (HttpClient client = new HttpClient())
+                {
+                    client.Timeout = TimeSpan.FromSeconds(60);
+
+                    // Example query string format
+                    string finalUrl = $"{requestUrl}?eid={encodedEid}&segment={segment}";
+                    tracing.Trace($"Calling URL: {finalUrl}");
+
+                    HttpResponseMessage response = client.GetAsync(finalUrl).Result;
+                    string responseContent = response.Content.ReadAsStringAsync().Result;
+
+                    tracing.Trace($"Response Status: {response.StatusCode}");
+                    tracing.Trace($"Response Content: {responseContent}");
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new InvalidPluginExecutionException(
+                            $"Authorization API call failed. Status: {response.StatusCode}, Response: {responseContent}");
+                    }
+
+                    // 5. Return raw response or parsed outputs
+                    context.OutputParameters["Response"] = responseContent;
+                }
+
+                tracing.Trace("=== CLMUserAuthorizationAPI Completed ===");
+            }
+            catch (Exception ex)
+            {
+                tracing.Trace($"CLMUserAuthorizationAPI Exception: {ex}");
+                throw new InvalidPluginExecutionException("Error in CLMUserAuthorizationAPI: " + ex.Message, ex);
+            }
+        }
+    }
+}
