@@ -1,0 +1,84 @@
+private PermissionData BuildPermissions(List<string> roleNames, string segment)
+{
+    try
+    {
+        if (roleNames == null || !roleNames.Any())
+        {
+            return new PermissionData();
+        }
+
+        // Normalize role names
+        var normalizedRoles = roleNames
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Build FetchXML for config table
+        // Assumption:
+        // 1. Entity logical name = vz_clmcontractdocumentsecurityconfig
+        // 2. Role name text column = vz_securityrole
+        // 3. Segment column = vz_segment (optional filter if needed)
+        string roleConditions = string.Join("",
+            normalizedRoles.Select(r => $"<condition attribute='vz_securityrole' operator='eq' value='{System.Security.SecurityElement.Escape(r)}' />"));
+
+        string segmentCondition = string.IsNullOrWhiteSpace(segment)
+            ? ""
+            : $"<condition attribute='vz_segment' operator='eq' value='{System.Security.SecurityElement.Escape(segment)}' />";
+
+        string fetchXml = $@"
+        <fetch>
+          <entity name='vz_clmcontractdocumentsecurityconfig'>
+            <attribute name='vz_securityrole' />
+            <attribute name='vz_createtemplate' />
+            <attribute name='vz_edittemplate' />
+            <attribute name='vz_viewtemplate' />
+            <attribute name='vz_addclasstodocument' />
+            <attribute name='vz_redlinedocument' />
+            <filter type='and'>
+              {(string.IsNullOrWhiteSpace(segmentCondition) ? "" : segmentCondition)}
+              <filter type='or'>
+                {roleConditions}
+              </filter>
+            </filter>
+          </entity>
+        </fetch>";
+
+        var results = service.RetrieveMultiple(new FetchExpression(fetchXml));
+
+        var permissionData = new PermissionData();
+
+        foreach (var entity in results.Entities)
+        {
+            permissionData.createTemplate =
+                permissionData.createTemplate || entity.GetAttributeValue<bool?>("vz_createtemplate").GetValueOrDefault();
+
+            permissionData.editTemplate =
+                permissionData.editTemplate || entity.GetAttributeValue<bool?>("vz_edittemplate").GetValueOrDefault();
+
+            permissionData.viewTemplate =
+                permissionData.viewTemplate || entity.GetAttributeValue<bool?>("vz_viewtemplate").GetValueOrDefault();
+
+            permissionData.addClassToDocument =
+                permissionData.addClassToDocument || entity.GetAttributeValue<bool?>("vz_addclasstodocument").GetValueOrDefault();
+
+            permissionData.redlineDocuments =
+                permissionData.redlineDocuments || entity.GetAttributeValue<bool?>("vz_redlinedocument").GetValueOrDefault();
+        }
+
+        tracing.Trace($"BuildPermissions - Matched config rows: {results.Entities.Count}");
+        tracing.Trace($"BuildPermissions - Final Permissions => " +
+                      $"createTemplate: {permissionData.createTemplate}, " +
+                      $"editTemplate: {permissionData.editTemplate}, " +
+                      $"viewTemplate: {permissionData.viewTemplate}, " +
+                      $"addClassToDocument: {permissionData.addClassToDocument}, " +
+                      $"redlineDocuments: {permissionData.redlineDocuments}");
+
+        return permissionData;
+    }
+    catch (Exception ex)
+    {
+        tracing.Trace("BuildPermissions error: " + ex.ToString());
+        throw;
+    }
+}
