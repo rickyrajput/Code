@@ -1,0 +1,28 @@
+var ContractDocument = window.ContractDocument || {};
+
+(function () {
+    this.openContract = function (executionContext) {
+        var eventSource = executionContext.getEventSource();
+        var recordId = eventSource.getId().replace(/[{}]/g, ""); // Clean GUID
+        var entityName = eventSource.getEntityName();
+
+        console.log("OnRecordSelect fired for record: " + recordId);
+
+        // === YOUR CUSTOM URL ===
+        var baseUrl = "https://your-custom-site.com/view-document";   // ← Update this
+        var targetUrl = baseUrl + "?recordId=" + encodeURIComponent(recordId) + 
+                        "&entityName=" + encodeURIComponent(entityName);
+
+        // Open the custom URL in a new tab
+        Xrm.Navigation.openUrl(targetUrl);
+
+        // === Critical: Prevent default open behavior ===
+        // Small delay + refresh to stop the default record open
+        setTimeout(function() {
+            try {
+                // Refresh parent grid to deselect and stop default action
+                Xrm.Utility.refreshParentGrid({ entityType: entityName, id: recordId });
+            } catch(e) {}
+        }, 100);
+    };
+}).call(ContractDocument);
