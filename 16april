@@ -1,0 +1,32 @@
+var ContractDocument = window.ContractDocument || {};
+
+(function () {
+    "use strict";
+
+    this.openContract = function (primaryControl) {
+        console.log("✅ openContract triggered from Ribbon");
+
+        var selectedRows = primaryControl.getSelectedRows ? 
+                           primaryControl.getSelectedRows() : 
+                           primaryControl.getGrid().getSelectedRows();
+
+        if (selectedRows.getLength() === 0) {
+            console.log("No rows selected");
+            return;
+        }
+
+        var entity = selectedRows.get(0).getData().getEntity();
+        var recordId = entity.getId().replace(/[{}]/g, "").toLowerCase();
+        var entityName = entity.getEntityName();
+
+        console.log("✅ Record clicked - ID: " + recordId + " | Entity: " + entityName);
+
+        // <<< CHANGE THIS TO YOUR ACTUAL CUSTOM URL >>>
+        var baseUrl = "https://your-custom-site.com/view-document";
+        
+        var targetUrl = baseUrl + "?recordId=" + encodeURIComponent(recordId) + 
+                        "&entityName=" + encodeURIComponent(entityName);
+
+        Xrm.Navigation.openUrl(targetUrl);
+    };
+}).call(ContractDocument);
