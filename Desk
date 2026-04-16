@@ -1,0 +1,26 @@
+var ContractDocument = window.ContractDocument || {};
+
+(function () {
+    this.openCustomUrl = function (primaryControl) {
+        var selectedRows = primaryControl.getSelectedRows ? 
+                           primaryControl.getSelectedRows() : 
+                           primaryControl.getGrid().getSelectedRows();
+
+        if (selectedRows.getLength() === 0) return;
+
+        var entity = selectedRows.get(0).getData().getEntity();
+        var recordId = entity.getId().replace(/[{}]/g, "").toLowerCase();
+        var entityName = entity.getEntityName();
+
+        console.log("✅ Custom URL opened for record: " + recordId);
+
+        // <<< CHANGE THIS TO YOUR ACTUAL URL >>>
+        var baseUrl = "https://your-custom-site.com/view-document";
+        
+        var targetUrl = baseUrl + "?recordId=" + encodeURIComponent(recordId) + 
+                        "&entityName=" + encodeURIComponent(entityName);
+
+        // Open in new tab
+        Xrm.Navigation.openUrl(targetUrl);
+    };
+}).call(ContractDocument);
