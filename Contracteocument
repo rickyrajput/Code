@@ -1,0 +1,70 @@
+var ContractRequest = window.ContractRequest || {};
+
+(function () {
+    /**
+     * Power Apps grid subgrid OnRecordSelect handler
+     * Register this function on the subgrid Events tab:
+     * Event: OnRecordSelect
+     * Function name: ContractRequest.openContract
+     * Check: Pass execution context as first parameter
+     */
+    ContractRequest.openContract = function (executionContext) {
+        try {
+            debugger;
+
+            if (!executionContext) {
+                console.log("executionContext is missing.");
+                return;
+            }
+
+            // In OnRecordSelect, eventSource is the selected grid row entity
+            var eventSource = executionContext.getEventSource();
+
+            if (!eventSource) {
+                console.log("eventSource is null.");
+                return;
+            }
+
+            var recordId = eventSource.getId();
+            var entityName = eventSource.getEntityName();
+
+            console.log("OnRecordSelect fired");
+            console.log("Entity Name:", entityName);
+            console.log("Record Id:", recordId);
+
+            if (!recordId || !entityName) {
+                console.log("Record Id or Entity Name not found.");
+                return;
+            }
+
+            // remove braces if present
+            recordId = recordId.replace("{", "").replace("}", "");
+
+            // Opens selected row record
+            var pageInput = {
+                pageType: "entityrecord",
+                entityName: entityName,
+                entityId: recordId
+            };
+
+            var navigationOptions = {
+                target: 2, // 2 = dialog, 1 = inline/full page
+                position: 1,
+                width: { value: 80, unit: "%" },
+                height: { value: 80, unit: "%" }
+            };
+
+            Xrm.Navigation.navigateTo(pageInput, navigationOptions)
+                .then(function () {
+                    console.log("Record opened successfully.");
+                })
+                .catch(function (error) {
+                    console.error("Error opening record:", error.message);
+                });
+
+        } catch (error) {
+            console.error("Error in ContractRequest.openContract:", error.message);
+            console.error(error);
+        }
+    };
+})();
