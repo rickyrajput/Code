@@ -1,0 +1,240 @@
+var VZ = VZ || {};
+
+VZ.ContractDocumentsForm = (function () {
+    "use strict";
+
+    const TAB_NAME = "contract_information";
+    const SECTION_NAME = "contract_information_section_21";
+    const WEBRESOURCE_CONTROL_NAME = "WebResource_contract_related_document";
+
+    const CONTRACT_DOCUMENT_ENTITY_SET = "vz_contractdocuments";
+    const CONTRACT_DOCUMENT_ENTITY_LOGICAL = "vz_contractdocument";
+
+    const COL_ID = "vz_contractdocumentid";
+    const COL_CONTRACTREQUEST_LOOKUP = "_vz_contractrequestid_value";
+    const COL_DOC_TYPE = "vz_documenttype";
+    const COL_DOC_VERSION = "vz_documentversion";
+    const COL_FILE_NAME = "vz_documentfile_name";
+    const COL_IS_LATEST = "vz_islatestversion";
+
+    const RESTRICTED_ROLES = [
+        "Commercial Sales Rep",
+        "Commercial Sales Manager"
+    ];
+
+    let _formContext = null;
+
+    function onLoad(executionContext) {
+        _formContext = executionContext.getFormContext();
+
+        if (!_formContext) {
+            return;
+        }
+
+        toggleSectionByRole(_formContext);
+
+        if (!isSectionVisible(_formContext)) {
+            return;
+        }
+
+        initializeHtmlHost(_formContext);
+        loadAndRenderDocuments(_formContext);
+    }
+
+    function toggleSectionByRole(formContext) {
+        const shouldHide = userHasRestrictedRole();
+        const tab = formContext.ui.tabs.get(TAB_NAME);
+        if (!tab) return;
+
+        const section = tab.sections.get(SECTION_NAME);
+        if (!section) return;
+
+        section.setVisible(!shouldHide);
+    }
+
+    function isSectionVisible(formContext) {
+        const tab = formContext.ui.tabs.get(TAB_NAME);
+        if (!tab) return false;
+
+        const section = tab.sections.get(SECTION_NAME);
+        if (!section) return false;
+
+        return section.getVisible();
+    }
+
+    function userHasRestrictedRole() {
+        try {
+            const roles = Xrm.Utility.getGlobalContext().userSettings.roles || [];
+            let found = false;
+
+            roles.forEach(function (role) {
+                if (role && role.name && RESTRICTED_ROLES.indexOf(role.name) > -1) {
+                    found = true;
+                }
+            });
+
+            return found;
+        } catch (e) {
+            console.error("Role check failed:", e);
+            return false;
+        }
+    }
+
+    function initializeHtmlHost(formContext) {
+        const wr = formContext.getControl(WEBRESOURCE_CONTROL_NAME);
+        if (!wr) {
+            console.warn("HTML web resource control not found:", WEBRESOURCE_CONTROL_NAME);
+            return;
+        }
+
+        wr.getContentWindow()
+            .then(function (win) {
+                if (!win) return;
+
+                // host callbacks available to HTML
+                win.contractDocumentHost = {
+                    onDownload: onDownloadClick,
+                    onViewClm: onViewClmClick,
+                    onViewAll: onViewAllClick
+                };
+
+                if (typeof win.initializeContractDocumentsUi === "function") {
+                    win.initializeContractDocumentsUi({
+                        title: "Contract Documents"
+                    });
+                }
+            })
+            .catch(function (error) {
+                console.error("Unable to initialize HTML host:", error);
+            });
+    }
+
+    function loadAndRenderDocuments(formContext) {
+        const wr = formContext.getControl(WEBRESOURCE_CONTROL_NAME);
+        if (!wr) return;
+
+        const contractRequestId = getRecordId(formContext);
+        if (!contractRequestId) {
+            renderIntoHtml([]);
+            return;
+        }
+
+        const query =
+            "?$select=" +
+            [
+                COL_ID,
+                COL_DOC_TYPE,
+                COL_DOC_VERSION,
+                COL_FILE_NAME,
+                COL_IS_LATEST
+            ].join(",") +
+            "&$filter=" +
+            COL_CONTRACTREQUEST_LOOKUP + " eq " + contractRequestId +
+            " and " + COL_IS_LATEST + " eq true" +
+            "&$orderby=" + COL_DOC_TYPE + " asc";
+
+        Xrm.WebApi.retrieveMultipleRecords(CONTRACT_DOCUMENT_ENTITY_LOGICAL, query)
+            .then(function (result) {
+                const rows = (result.entities || []).map(mapDocumentRow);
+                renderIntoHtml(rows);
+            })
+            .catch(function (error) {
+                console.error("Failed to retrieve contract documents:", error);
+                renderErrorIntoHtml("Unable to load contract documents.");
+            });
+    }
+
+    function mapDocumentRow(record) {
+        return {
+            id: record[COL_ID],
+            documentTypeValue: record[COL_DOC_TYPE],
+            documentTypeLabel: record[COL_DOC_TYPE + "@OData.Community.Display.V1.FormattedValue"] || "Document",
+            version: record[COL_DOC_VERSION] || "",
+            fileName: record[COL_FILE_NAME] || "",
+            isLatest: record[COL_IS_LATEST] === true
+        };
+    }
+
+    function renderIntoHtml(rows) {
+        const wr = _formContext.getControl(WEBRESOURCE_CONTROL_NAME);
+        if (!wr) return;
+
+        wr.getContentWindow()
+            .then(function (win) {
+                if (win && typeof win.renderContractDocuments === "function") {
+                    win.renderContractDocuments(rows);
+                }
+            })
+            .catch(function (error) {
+                console.error("Unable to render into HTML:", error);
+            });
+    }
+
+    function renderErrorIntoHtml(message) {
+        const wr = _formContext.getControl(WEBRESOURCE_CONTROL_NAME);
+        if (!wr) return;
+
+        wr.getContentWindow()
+            .then(function (win) {
+                if (win && typeof win.renderContractDocumentsError === "function") {
+                    win.renderContractDocumentsError(message);
+                }
+            })
+            .catch(function (error) {
+                console.error("Unable to render error into HTML:", error);
+            });
+    }
+
+    function onDownloadClick(documentId) {
+        if (!documentId) {
+            Xrm.Navigation.openAlertDialog({ text: "Document id is missing." });
+            return;
+        }
+
+        const clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+        const fileColumnName = "vz_documentfile";
+
+        const downloadUrl =
+            clientUrl +
+            "/api/data/v9.2/" +
+            CONTRACT_DOCUMENT_ENTITY_SET +
+            "(" + documentId + ")/" +
+            fileColumnName +
+            "/$value";
+
+        window.open(downloadUrl, "_blank");
+    }
+
+    function onViewClmClick(documentId) {
+        if (!documentId) {
+            Xrm.Navigation.openAlertDialog({ text: "Document id is missing." });
+            return;
+        }
+
+        const clmBaseUrl = "https://YOUR-CLM-URL-HERE";
+        const url = clmBaseUrl + "?contractDocumentId=" + encodeURIComponent(documentId);
+
+        window.open(url, "_blank");
+    }
+
+    function onViewAllClick() {
+        const tab = _formContext.ui.tabs.get("tab_contract_documents");
+        if (!tab) {
+            Xrm.Navigation.openAlertDialog({ text: "Contract Documents tab not found." });
+            return;
+        }
+
+        tab.setVisible(true);
+        tab.setDisplayState("expanded");
+        tab.setFocus();
+    }
+
+    function getRecordId(formContext) {
+        const id = formContext.data.entity.getId();
+        return id ? id.replace(/[{}]/g, "") : null;
+    }
+
+    return {
+        onLoad: onLoad
+    };
+})();
