@@ -1,0 +1,264 @@
+var ContractDocumentsWidget = (function () {
+    "use strict";
+
+    let config = {
+        contractRequestId: null,
+        clientUrl: null
+    };
+
+    const TABLE_NAME = "vz_contractdocuments";
+    const LOOKUP_FIELD = "_vz_contractrequestid_value";
+    const FILE_COLUMN = "vz_documentfile";
+    const FILE_NAME_COLUMN = "vz_documentfile_name";
+    const VERSION_COLUMN = "vz_documentversion";
+    const DOC_TYPE_COLUMN = "vz_documenttype";
+    const IS_LATEST_COLUMN = "vz_islatestversion";
+    const PRIMARY_ID_COLUMN = "vz_contractdocumentid";
+
+    function initialize(input) {
+        config.contractRequestId = input.contractRequestId;
+        config.clientUrl = input.clientUrl || Xrm.Utility.getGlobalContext().getClientUrl();
+
+        bindStaticEvents();
+        loadDocuments();
+    }
+
+    function bindStaticEvents() {
+        const btnViewAll = document.getElementById("btnViewAll");
+        if (btnViewAll) {
+            btnViewAll.addEventListener("click", onViewAllClick);
+        }
+    }
+
+    function loadDocuments() {
+        showLoading(true);
+        hideEmpty();
+
+        const query =
+            "?$select=" +
+            [
+                PRIMARY_ID_COLUMN,
+                DOC_TYPE_COLUMN,
+                VERSION_COLUMN,
+                FILE_COLUMN,
+                FILE_NAME_COLUMN,
+                IS_LATEST_COLUMN
+            ].join(",") +
+            "&$filter=" +
+            LOOKUP_FIELD + " eq " + config.contractRequestId +
+            " and " + IS_LATEST_COLUMN + " eq true" +
+            "&$orderby=" + DOC_TYPE_COLUMN + " asc";
+
+        Xrm.WebApi.retrieveMultipleRecords(TABLE_NAME, query).then(
+            function success(result) {
+                renderDocuments(result.entities || []);
+                showLoading(false);
+            },
+            function error(err) {
+                showLoading(false);
+                console.error("Error loading contract documents:", err);
+                showError("Unable to load contract documents.");
+            }
+        );
+    }
+
+    function renderDocuments(records) {
+        const list = document.getElementById("cd-list");
+        list.innerHTML = "";
+
+        if (!records || records.length === 0) {
+            showEmpty();
+            return;
+        }
+
+        records.forEach(function (record) {
+            const item = document.createElement("div");
+            item.className = "cd-item";
+
+            const docTypeLabel = getFormattedValue(record, DOC_TYPE_COLUMN) || "Document";
+            const version = record[VERSION_COLUMN] || "";
+            const fileId = record[FILE_COLUMN] || "";
+            const fileName = record[FILE_NAME_COLUMN] || "Download";
+            const contractDocumentId = record[PRIMARY_ID_COLUMN];
+
+            item.innerHTML = `
+                <div class="cd-type">${escapeHtml(docTypeLabel)}</div>
+
+                <div class="cd-row">
+                    <div class="cd-label">Title:</div>
+                    <div class="cd-value">${escapeHtml(fileName)}</div>
+                </div>
+
+                <div class="cd-row">
+                    <div class="cd-label">Latest Version Detail:</div>
+                    <div class="cd-value">${escapeHtml(version)}</div>
+                </div>
+
+                <div class="cd-row">
+                    <div class="cd-label">Actions:</div>
+                    <div class="cd-actions">
+                        <button type="button" class="cd-link js-download"
+                            data-fileid="${escapeAttr(fileId)}"
+                            data-filename="${escapeAttr(fileName)}"
+                            data-recordid="${escapeAttr(contractDocumentId)}">
+                            Download
+                        </button>
+
+                        <button type="button" class="cd-link js-viewclm"
+                            data-recordid="${escapeAttr(contractDocumentId)}"
+                            data-filename="${escapeAttr(fileName)}">
+                            View CLM Tool
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            list.appendChild(item);
+        });
+
+        bindRowEvents();
+    }
+
+    function bindRowEvents() {
+        const downloadButtons = document.querySelectorAll(".js-download");
+        downloadButtons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                const fileId = btn.getAttribute("data-fileid");
+                const fileName = btn.getAttribute("data-filename");
+                const recordId = btn.getAttribute("data-recordid");
+
+                downloadFile(recordId, fileId, fileName);
+            });
+        });
+
+        const viewButtons = document.querySelectorAll(".js-viewclm");
+        viewButtons.forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                const recordId = btn.getAttribute("data-recordid");
+                openClmTool(recordId);
+            });
+        });
+    }
+
+    function downloadFile(contractDocumentId, fileId, fileName) {
+        if (!contractDocumentId || !fileId) {
+            Xrm.Navigation.openAlertDialog({ text: "File is not available." });
+            return;
+        }
+
+        // Recommended approach:
+        // call a custom server-side endpoint/custom API if you want the most robust download handling.
+        // Below is a direct Web API pattern placeholder for Dataverse file download.
+        //
+        // For file columns, Dataverse uses dedicated file operations rather than standard record retrieval.
+        // See Microsoft docs for file column download flow.
+
+        const entitySetName = TABLE_NAME;
+        const fileColumnLogicalName = FILE_COLUMN;
+
+        const downloadUrl =
+            config.clientUrl +
+            "/api/data/v9.2/" +
+            entitySetName +
+            "(" + contractDocumentId + ")/" +
+            fileColumnLogicalName +
+            "/$value";
+
+        fetch(downloadUrl, {
+            method: "GET",
+            headers: {
+                "Accept": "application/octet-stream",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0"
+            },
+            credentials: "include"
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("Download failed. Status: " + response.status);
+            }
+            return response.blob();
+        })
+        .then(function (blob) {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = fileName || "download";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        })
+        .catch(function (error) {
+            console.error("Download error:", error);
+            Xrm.Navigation.openAlertDialog({
+                text: "Unable to download the file. If direct file-column download is blocked in your environment, use a custom API."
+            });
+        });
+    }
+
+    function openClmTool(contractDocumentId) {
+        const baseClmUrl = "https://YOUR-CLM-URL-HERE";
+        const finalUrl = baseClmUrl + "?contractDocumentId=" + encodeURIComponent(contractDocumentId);
+
+        window.open(finalUrl, "_blank");
+    }
+
+    function onViewAllClick() {
+        // You can open a custom page, modal, HTML web resource, or separate CLM page
+        const url = "https://YOUR-VIEW-ALL-URL-HERE?contractRequestId=" + encodeURIComponent(config.contractRequestId);
+        window.open(url, "_blank");
+    }
+
+    function getFormattedValue(record, columnName) {
+        return record[columnName + "@OData.Community.Display.V1.FormattedValue"];
+    }
+
+    function showLoading(show) {
+        const el = document.getElementById("cd-loading");
+        if (el) {
+            el.style.display = show ? "block" : "none";
+        }
+    }
+
+    function showEmpty() {
+        const el = document.getElementById("cd-empty");
+        if (el) {
+            el.style.display = "block";
+        }
+    }
+
+    function hideEmpty() {
+        const el = document.getElementById("cd-empty");
+        if (el) {
+            el.style.display = "none";
+        }
+    }
+
+    function showError(message) {
+        const list = document.getElementById("cd-list");
+        list.innerHTML = `<div class="cd-empty">${escapeHtml(message)}</div>`;
+    }
+
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return "";
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function escapeAttr(value) {
+        return escapeHtml(value);
+    }
+
+    return {
+        initialize: initialize
+    };
+})();
+
+function initializeContractDocuments(input) {
+    ContractDocumentsWidget.initialize(input);
+}
