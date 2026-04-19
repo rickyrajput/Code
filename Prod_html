@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Contract Documents</title>
+    <link rel="stylesheet" href="vz_contractdocuments.css" />
+</head>
+<body>
+    <div class="cd-root">
+        <div class="cd-header" id="cd-header">Contract Documents</div>
+        <div class="cd-body">
+            <div id="cd-loading" class="cd-message">Loading...</div>
+            <div id="cd-error" class="cd-message cd-error" style="display:none;"></div>
+            <div id="cd-empty" class="cd-message" style="display:none;">No contract documents found.</div>
+            <div id="cd-list"></div>
+        </div>
+        <div class="cd-footer">
+            <button id="btnViewAll" class="cd-link-btn" type="button">View All</button>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            "use strict";
+
+            var host = null;
+
+            window.initializeContractDocumentsUi = function (config) {
+                host = window.contractDocumentHost || null;
+
+                if (config && config.title) {
+                    document.getElementById("cd-header").textContent = config.title;
+                }
+
+                document.getElementById("btnViewAll").addEventListener("click", function () {
+                    if (host && typeof host.onViewAll === "function") {
+                        host.onViewAll();
+                    }
+                });
+            };
+
+            window.renderContractDocuments = function (rows) {
+                hideAllMessages();
+
+                var list = document.getElementById("cd-list");
+                list.innerHTML = "";
+
+                if (!rows || rows.length === 0) {
+                    document.getElementById("cd-empty").style.display = "block";
+                    return;
+                }
+
+                rows.forEach(function (row) {
+                    var item = document.createElement("div");
+                    item.className = "cd-item";
+
+                    item.innerHTML =
+                        '<div class="cd-type">' + escapeHtml(row.documentTypeLabel) + '</div>' +
+                        '<div class="cd-row"><span class="cd-label">Title:</span><span class="cd-value">' + escapeHtml(row.fileName) + '</span></div>' +
+                        '<div class="cd-row"><span class="cd-label">Latest Version Detail:</span><span class="cd-value">' + escapeHtml(row.version) + '</span></div>' +
+                        '<div class="cd-row"><span class="cd-label">Actions:</span>' +
+                            '<button class="cd-link-btn js-download" data-id="' + escapeHtml(row.id) + '" type="button">Download</button>' +
+                            '<button class="cd-link-btn js-viewclm" data-id="' + escapeHtml(row.id) + '" type="button">View CLM Tool</button>' +
+                        '</div>';
+
+                    list.appendChild(item);
+                });
+
+                bindRowActions();
+            };
+
+            window.renderContractDocumentsError = function (message) {
+                hideAllMessages();
+                var error = document.getElementById("cd-error");
+                error.textContent = message || "Something went wrong.";
+                error.style.display = "block";
+            };
+
+            function bindRowActions() {
+                var downloads = document.querySelectorAll(".js-download");
+                downloads.forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var id = btn.getAttribute("data-id");
+                        if (host && typeof host.onDownload === "function") {
+                            host.onDownload(id);
+                        }
+                    });
+                });
+
+                var viewClmButtons = document.querySelectorAll(".js-viewclm");
+                viewClmButtons.forEach(function (btn) {
+                    btn.addEventListener("click", function () {
+                        var id = btn.getAttribute("data-id");
+                        if (host && typeof host.onViewClm === "function") {
+                            host.onViewClm(id);
+                        }
+                    });
+                });
+            }
+
+            function hideAllMessages() {
+                document.getElementById("cd-loading").style.display = "none";
+                document.getElementById("cd-empty").style.display = "none";
+                document.getElementById("cd-error").style.display = "none";
+            }
+
+            function escapeHtml(value) {
+                if (value === null || value === undefined) return "";
+                return String(value)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+            }
+        })();
+    </script>
+</body>
+</html>
