@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Contract Documents</title>
+    <link rel="stylesheet" href="contractdocuments.css" />
+</head>
+<body>
+    <div id="cd-root">
+        <div class="cd-header">Contract Documents</div>
+        <div id="cd-loading" class="cd-loading">Loading...</div>
+        <div id="cd-empty" class="cd-empty" style="display:none;">No contract documents found.</div>
+        <div id="cd-list" class="cd-list"></div>
+        <div class="cd-footer">
+            <button id="btnViewAll" type="button" class="cd-link-btn">View All</button>
+        </div>
+    </div>
+
+    <script src="../ClientGlobalContext.js.aspx"></script>
+    <script src="contractdocuments.js"></script>
+</body>
+</html>
