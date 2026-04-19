@@ -1,0 +1,99 @@
+var VZ = VZ || {};
+VZ.ContractDocumentsForm = (function () {
+    "use strict";
+
+    const SECTION_NAME = "contract_document_section";
+    const TAB_NAME = "tab_contractdocuments";
+    const WEBRESOURCE_NAME = "WebResource_contract_documents"; 
+    // replace with actual control name of the HTML web resource on form
+
+    const HIDE_ROLES = [
+        "Commercial Sales Rep",
+        "Commercial Sales Manager"
+    ];
+
+    function onLoad(executionContext) {
+        const formContext = executionContext.getFormContext();
+
+        hideSectionForRestrictedRoles(formContext)
+            .then(function (isHidden) {
+                if (!isHidden) {
+                    initializeHtmlWebResource(formContext);
+                }
+            })
+            .catch(function (error) {
+                console.error("Contract document widget onLoad error:", error);
+            });
+    }
+
+    function hideSectionForRestrictedRoles(formContext) {
+        return new Promise(function (resolve) {
+            try {
+                const userSettings = Xrm.Utility.getGlobalContext().userSettings;
+                const roles = userSettings.roles || [];
+                let shouldHide = false;
+
+                roles.forEach(function (role) {
+                    if (role && role.name && HIDE_ROLES.indexOf(role.name) > -1) {
+                        shouldHide = true;
+                    }
+                });
+
+                const tab = formContext.ui.tabs.get(TAB_NAME);
+                if (!tab) {
+                    resolve(false);
+                    return;
+                }
+
+                const section = tab.sections.get(SECTION_NAME);
+                if (!section) {
+                    resolve(false);
+                    return;
+                }
+
+                section.setVisible(!shouldHide);
+
+                resolve(shouldHide);
+            } catch (e) {
+                console.error("Role based hide error:", e);
+                resolve(false);
+            }
+        });
+    }
+
+    function initializeHtmlWebResource(formContext) {
+        const wrCtrl = formContext.getControl(WEBRESOURCE_NAME);
+        if (!wrCtrl) {
+            console.warn("HTML web resource control not found:", WEBRESOURCE_NAME);
+            return;
+        }
+
+        const contractRequestId = getRecordId(formContext);
+        if (!contractRequestId) {
+            console.warn("Contract Request id not available.");
+            return;
+        }
+
+        wrCtrl.getContentWindow().then(function (contentWindow) {
+            if (contentWindow && typeof contentWindow.initializeContractDocuments === "function") {
+                contentWindow.initializeContractDocuments({
+                    contractRequestId: contractRequestId,
+                    clientUrl: Xrm.Utility.getGlobalContext().getClientUrl()
+                });
+            } else {
+                console.warn("initializeContractDocuments not found in HTML web resource.");
+            }
+        }).catch(function (error) {
+            console.error("Error accessing web resource window:", error);
+        });
+    }
+
+    function getRecordId(formContext) {
+        const id = formContext.data.entity.getId();
+        return id ? id.replace(/[{}]/g, "") : null;
+    }
+
+    return {
+        onLoad: onLoad
+    };
+})();
