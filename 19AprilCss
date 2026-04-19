@@ -1,0 +1,90 @@
+body {
+    font-family: Segoe UI, Arial, sans-serif;
+    margin: 0;
+    padding: 8px;
+    background: #fff;
+    color: #323130;
+}
+
+#cd-root {
+    border: 1px solid #e1dfdd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.cd-header {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 14px 16px;
+    border-bottom: 1px solid #edebe9;
+}
+
+.cd-loading,
+.cd-empty {
+    padding: 16px;
+    font-size: 13px;
+    color: #605e5c;
+}
+
+.cd-list {
+    padding: 8px 0;
+}
+
+.cd-item {
+    padding: 14px 16px;
+    border-bottom: 1px solid #edebe9;
+}
+
+.cd-type {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.cd-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    flex-wrap: wrap;
+}
+
+.cd-label {
+    min-width: 110px;
+    color: #605e5c;
+    font-size: 13px;
+}
+
+.cd-value {
+    font-size: 13px;
+    color: #323130;
+}
+
+.cd-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #0f6cbd;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 13px;
+}
+
+.cd-link-btn {
+    background: none;
+    border: none;
+    color: #0f6cbd;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.cd-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cd-footer {
+    text-align: center;
+    padding: 12px;
+}
