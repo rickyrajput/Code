@@ -1,0 +1,84 @@
+function onDownloadClick(documentId) {
+    downloadContractFile(documentId).catch(function (error) {
+        console.error("File download failed:", error);
+
+        Xrm.Navigation.openAlertDialog({
+            text: error && error.message
+                ? error.message
+                : "Unable to download file."
+        });
+    });
+}
+
+async function downloadContractFile(documentId) {
+    if (!documentId) {
+        throw new Error("Document id is missing.");
+    }
+
+    const clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+    const entitySetName = CONTRACT_DOCUMENT_ENTITY_SET; // e.g. "vz_contractdocuments"
+    const fileColumnName = "vz_documentfile";
+
+    const cleanId = documentId.replace("{", "").replace("}", "");
+    const downloadUrl =
+        clientUrl +
+        "/api/data/v9.2/" +
+        entitySetName +
+        "(" + cleanId + ")/" +
+        fileColumnName +
+        "/$value";
+
+    Xrm.Utility.showProgressIndicator("Downloading file...");
+
+    try {
+        const response = await fetch(downloadUrl, {
+            method: "GET",
+            headers: {
+                "OData-Version": "4.0",
+                "OData-MaxVersion": "4.0",
+                "Accept": "application/octet-stream"
+            },
+            credentials: "same-origin"
+        });
+
+        if (!response.ok) {
+            let errorText = "Unable to download file.";
+            try {
+                const errorBody = await response.text();
+                if (errorBody) {
+                    errorText = errorBody;
+                }
+            } catch (readError) {
+                // ignore body read failure
+            }
+
+            throw new Error(errorText);
+        }
+
+        const blob = await response.blob();
+
+        const fileNameHeader = response.headers.get("x-ms-file-name");
+        const fileName = fileNameHeader && fileNameHeader.trim()
+            ? fileNameHeader
+            : "downloaded-file";
+
+        const objectUrl = window.URL.createObjectURL(blob);
+
+        try {
+            const anchor = document.createElement("a");
+            anchor.href = objectUrl;
+            anchor.download = fileName;
+            anchor.style.display = "none";
+
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+        } finally {
+            window.setTimeout(function () {
+                window.URL.revokeObjectURL(objectUrl);
+            }, 1000);
+        }
+    } finally {
+        Xrm.Utility.closeProgressIndicator();
+    }
+}
