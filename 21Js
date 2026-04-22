@@ -1,0 +1,22 @@
+function onLoad(executionContext) {
+    _formContext = executionContext.getFormContext();
+
+    if (!_formContext) {
+        return;
+    }
+
+    toggleSectionByRole(_formContext);
+
+    if (!isSectionVisible(_formContext)) {
+        return;
+    }
+
+    initializeHtmlHost(_formContext)
+        .then(function () {
+            return loadAndRenderDocuments(_formContext);
+        })
+        .catch(function (error) {
+            console.error("Contract documents initialization failed:", error);
+            renderErrorIntoHtml("Unable to initialize contract documents.");
+        });
+}
